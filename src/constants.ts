@@ -1,0 +1,20 @@
+export class Constants {
+  static ENDPOINT = 'Transcribestreaming.'.concat(process.env['AWS_REGION']).concat('.amazonaws.com:8443')
+  static INPUT_SAMPLE_RATE = 44100
+  static OUTPUT_SAMPLE_RATE = 16000
+  static EXPIRATION_DELAY = 86400
+  static PROTOCOL = 'wss'
+  static PATH = '/stream-transcription-websocket'
+  static SERVICE = 'transcribe'
+  static AWS4_REQUEST = 'aws4_request'
+  static AWS_ACCESS_KEY_ID = process.env['AWS_ACCESS_KEY_ID']
+  static AWS_SECRET_ACCESS_KEY = process.env['AWS_SECRET_ACCESS_KEY']
+  static X_AMZ_ALGORITHM = 'AWS4-HMAC-SHA256'
+  static UTF8 = 'utf8'
+  static SHA256 = 'sha256'
+  static AWS4 = 'AWS4'
+  static REGION = process.env['AWS_REGION']
+  static GET_METHOD = 'GET'
+  static LANGUAGE_CODE = 'en-US'
+  static MEDIA_ENCODING = 'pcm'
+}

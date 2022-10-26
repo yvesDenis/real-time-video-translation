@@ -1,5 +1,4 @@
 import express from 'express'
-import bodyParser from 'body-parser'
 
 export const app = express()
 
@@ -12,5 +11,3 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   next()
 })
-
-app.use(bodyParser.json())

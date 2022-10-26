@@ -1,5 +1,6 @@
 import http from 'http'
 import { app } from './app'
+import { WebSocketServer } from 'ws'
 
 const port = 3000
 app.set('port', port)
@@ -34,3 +35,5 @@ server.on('listening', () => {
 })
 
 server.listen(port)
+
+export const wsServer = new WebSocketServer({ server })
