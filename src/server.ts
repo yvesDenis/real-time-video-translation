@@ -1,6 +1,7 @@
-import http from 'http'
+import * as http from 'http'
 import { app } from './app'
 import { WebSocketServer } from 'ws'
+import { StreamingClient } from './streaming-client'
 
 const port = 3000
 app.set('port', port)
@@ -37,3 +38,7 @@ server.on('listening', () => {
 server.listen(port)
 
 export const wsServer = new WebSocketServer({ server })
+
+const streamingClient = new StreamingClient()
+
+streamingClient.runSocket()

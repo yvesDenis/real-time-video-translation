@@ -1,4 +1,5 @@
-import express from 'express'
+import * as express from 'express'
+import * as path from 'path'
 
 export const app = express()
 
@@ -10,4 +11,10 @@ app.use((req, res, next) => {
   )
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS')
   next()
+})
+
+app.use(express.static('dist/public'))
+
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '/public/index.html'))
 })

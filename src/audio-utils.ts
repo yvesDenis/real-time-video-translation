@@ -1,26 +1,29 @@
 import { Constants } from './constants'
-import * as Crypto from 'crypto'
 import * as QueryString from 'querystring'
+import * as CryptoEncHex from 'crypto-js/enc-hex'
+import * as Sha256 from 'crypto-js/sha256'
+import * as HmacSHA256 from 'crypto-js/hmac-sha256'
 
 export class AudioUtils {
   generateTranscribePresignedUrl = () => {
     const headers = new Map<string, string>()
     headers.set('Host', Constants.ENDPOINT)
-    const payload = this.toHash('')
+    const payload = this.toHash('').toString(CryptoEncHex)
     const timestamp = Date.now()
-    const query = this.createQuery(timestamp, headers)
 
+    const query = this.createQuery(timestamp, headers)
     const canonicalRequest = this.createCanonicalRequest(query, payload, headers)
     const stringToSign = this.createStringToSign(timestamp, canonicalRequest)
     const signature = this.createSignature(timestamp, stringToSign)
 
-    query['X-Amz-Signature'] = signature
+    query.set('X-Amz-Signature', signature.toString(CryptoEncHex))
+    const queryString = QueryString.stringify(this.toDict(query))
 
     return Constants.PROTOCOL.concat('://')
       .concat(Constants.ENDPOINT)
       .concat(Constants.PATH)
       .concat('?')
-      .concat(QueryString.stringify(this.toDict(query)))
+      .concat(queryString)
   }
 
   private createCredentialScope = (time: number, region: string, service: string) =>
@@ -37,20 +40,23 @@ export class AudioUtils {
     ].join('\n')
 
   private createCanonicalHeaders = (headers: Map<string, string>) =>
-    Object.keys(headers)
+    Array.from(headers.keys())
       .sort()
-      .map((name) => name.toLowerCase().trim().concat(':').concat(headers[name].toString().trim()).concat('\n'))
+      .map((name) => name.toLowerCase().trim().concat(':').concat(headers.get(name).trim()).concat('\n'))
       .join('')
 
   private createCanonicalQueryString = (query: Map<string, string>) =>
-    Object.keys(query)
+    Array.from(query.keys())
       .sort()
-      .map((key) => encodeURIComponent(key).concat('=').concat(encodeURIComponent(query[key])))
+      .map((key) =>
+        encodeURIComponent(key)
+          .concat('=')
+          .concat(encodeURIComponent(query.get(key))),
+      )
       .join('&')
 
   private createSignedHeaders = (headers: Map<string, string>) =>
-    Object.keys(headers)
-      .sort()
+    Array.from(headers.keys())
       .map((name) => name.toLowerCase().trim())
       .join(';')
 
@@ -59,7 +65,7 @@ export class AudioUtils {
       Constants.X_AMZ_ALGORITHM,
       this.toTime(timestamp),
       this.createCredentialScope(timestamp, Constants.REGION, Constants.SERVICE),
-      this.toHash(canonicalRequest),
+      this.toHash(canonicalRequest).toString(CryptoEncHex),
     ].join('\n')
 
   private createSignature = (timestamp: number, stringToSign: string) => {
@@ -74,24 +80,27 @@ export class AudioUtils {
 
   private toTime = (timestamp: number) => new Date(timestamp).toISOString().replace(/[:-]|\.\d{3}/g, '')
 
-  private toHash = (text: string) => Crypto.createHash(Constants.SHA256).update(text, 'utf8').digest('hex')
+  private toHash = (text: string) => Sha256(text)
 
-  private toHmac = (key: Crypto.BinaryLike, text: string) =>
-    Crypto.createHmac(Constants.SHA256, key).update(text, 'utf8').digest('hex')
+  private toHmac = (key: string | CryptoJS.lib.WordArray, text: string) => HmacSHA256(text, key)
 
   private createQuery = (timestamp: number, headers: Map<string, string>) => {
     const query = new Map<string, string>()
-    query['language-code'] = Constants.LANGUAGE_CODE
-    query['media-encoding'] = Constants.MEDIA_ENCODING
-    query['sample-rate'] = Constants.INPUT_SAMPLE_RATE
-    query['X-Amz-Algorithm'] = Constants.X_AMZ_ALGORITHM
-    query['X-Amz-Credential'] = Constants.AWS_ACCESS_KEY_ID.concat('/').concat(
-      this.createCredentialScope(timestamp, Constants.REGION, Constants.SERVICE),
+    query.set('language-code', Constants.LANGUAGE_CODE)
+    query.set('media-encoding', Constants.MEDIA_ENCODING)
+    query.set('sample-rate', Constants.INPUT_SAMPLE_RATE.toString())
+    query.set('X-Amz-Algorithm', Constants.X_AMZ_ALGORITHM)
+    query.set(
+      'X-Amz-Credential',
+      Constants.AWS_ACCESS_KEY_ID.toString()
+        .concat('/')
+        .concat(this.createCredentialScope(timestamp, Constants.REGION, Constants.SERVICE)),
     )
-    query['X-Amz-Date'] = this.toTime(timestamp)
-    query['X-Amz-Expires'] = Constants.EXPIRATION_DELAY
-    query['X-Amz-SignedHeaders'] = this.createSignedHeaders(headers)
-    return query
+    query.set('X-Amz-Date', this.toTime(timestamp))
+    query.set('X-Amz-Expires', Constants.EXPIRATION_DELAY.toString())
+    query.set('X-Amz-SignedHeaders', this.createSignedHeaders(headers))
+
+    return new Map([...query.entries()].sort())
   }
 
   private toDict = (query: Map<string, string>) => Object.fromEntries(query)

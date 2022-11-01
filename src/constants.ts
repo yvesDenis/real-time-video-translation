@@ -1,8 +1,8 @@
 export class Constants {
-  static ENDPOINT = 'Transcribestreaming.'.concat(process.env['AWS_REGION']).concat('.amazonaws.com:8443')
+  static ENDPOINT = 'transcribestreaming.'.concat(process.env['AWS_REGION']).concat('.amazonaws.com:8443')
   static INPUT_SAMPLE_RATE = 44100
   static OUTPUT_SAMPLE_RATE = 16000
-  static EXPIRATION_DELAY = 86400
+  static EXPIRATION_DELAY = 300
   static PROTOCOL = 'wss'
   static PATH = '/stream-transcription-websocket'
   static SERVICE = 'transcribe'
