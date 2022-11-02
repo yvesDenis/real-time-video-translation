@@ -3,6 +3,8 @@ const MicrophoneStream = require('microphone-stream').default // collect microph
 let transcription = ''
 let socket
 let micStream
+let sampleRate
+let inputSampleRate
 let socketError = false
 let transcribeException = false
 
@@ -29,6 +31,10 @@ let streamAudioToWebSocket = function (userMediaStream) {
   //let's get the mic input from the browser, via the microphone-stream module
   micStream = new MicrophoneStream()
 
+  micStream.on("format", function(data) {
+    inputSampleRate = data.sampleRate;
+  })
+
   micStream.setStream(userMediaStream)
 
   //open up our WebSocket connection
@@ -39,9 +45,10 @@ let streamAudioToWebSocket = function (userMediaStream) {
   socket.onopen = function () {
     micStream.on('data', function (rawAudioChunk) {
       // the audio stream is raw audio bytes. Transcribe expects PCM with additional metadata, encoded as binary
+      let binary = convertAudioToBinaryMessage(rawAudioChunk);
+
       if (socket.readyState === socket.OPEN) {
-        console.log('Sending data')
-        socket.send(rawAudioChunk)
+        socket.send(binary)
       }
     })
   }
@@ -53,7 +60,7 @@ let streamAudioToWebSocket = function (userMediaStream) {
 function wireSocketEvents() {
   // handle inbound messages from Amazon Transcribe
   socket.onmessage = function (message) {
-    console.log('received message client')
+    console.log('received message client '+message)
     //convert the binary event stream message to JSON
     if (message != undefined) {
       $('#transcript').val(transcription + message + '\n')
@@ -87,6 +94,7 @@ function wireSocketEvents() {
 let closeSocket = function () {
   if (socket.readyState === socket.OPEN) {
     micStream.stop()
+    socket.send(null);
   }
 }
 
@@ -108,4 +116,50 @@ function toggleStartStop(disableStart = false) {
 function showError(message) {
   $('#error').html('<i class="fa fa-times-circle"></i> ' + message)
   $('#error').show()
+}
+
+function downsampleBuffer(buffer, inputSampleRate = 44100, outputSampleRate = 16000) {
+        
+  if (outputSampleRate === inputSampleRate) {
+      return buffer;
+  }
+
+  var sampleRateRatio = inputSampleRate / outputSampleRate;
+  var newLength = Math.round(buffer.length / sampleRateRatio);
+  var result = new Float32Array(newLength);
+  var offsetResult = 0;
+  var offsetBuffer = 0;
+  
+  while (offsetResult < result.length) {
+
+      var nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+
+      var accum = 0,
+      count = 0;
+      
+      for (var i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++ ) {
+          accum += buffer[i];
+          count++;
+      }
+
+      result[offsetResult] = accum / count;
+      offsetResult++;
+      offsetBuffer = nextOffsetBuffer;
+
+  }
+
+  return result;
+
+}
+
+function convertAudioToBinaryMessage(audioChunk) {
+  let raw = MicrophoneStream.toRaw(audioChunk);
+
+  if (raw == null)
+      return;
+
+  // downsample and convert the raw audio bytes to PCM
+  let downsampledBuffer = downsampleBuffer(raw, inputSampleRate, sampleRate);
+
+  return downsampledBuffer;
 }

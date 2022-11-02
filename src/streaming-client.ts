@@ -19,64 +19,27 @@ export class StreamingClient {
   }
 
   runSocket = () => {
-    this.webSocket.onopen = () => {
-      console.log('connecting to AWS!')
-    }
-
-    this.webSocket.onerror = (errorEvent) => {
-      console.error(errorEvent)
-    }
-
-    this.webSocket.onclose = (closeEvent) => {
-      console.log('closeddd :' + closeEvent.code + ' , ' + closeEvent.reason)
-    }
-
-    this.webSocket.onmessage = (message) => {
-      //convert the binary event stream message to JSON
-      const arr = new Uint8Array(message.data as Buffer)
-      const str = String.fromCharCode(...arr)
-      console.log('received !!! ' + str)
-    }
+    this.webSocket.onopen = () => console.log('connecting to AWS!')
 
     wsServer.on('connection', (connection) => {
       connection.on('message', (event) => {
-        const binaryMessage = this.convertAudioToBinaryMessage(event)
+        const binaryMessage = this.convertAudioToBinaryMessage(event as ArrayBuffer)
         if (this.webSocket.readyState === this.webSocket.OPEN) {
-          console.log('sending data to AWS!!!')
           this.webSocket.send(binaryMessage)
         }
       })
 
-      this.webSocket.onmessage = (message) => {
-        //convert the binary event stream message to JSON
-        console.log('received message!!!' + message)
-        const messageWrapper = this.marshall.decode(new TextEncoder().encode('message.data'))
-        const messageBody = JSON.parse(String.fromCharCode(...messageWrapper.body))
-        if (messageWrapper.headers[':message-type'].value === 'event') {
-          console.log('Sending data!!!')
-          connection.send(this.handleEventStreamMessage(messageBody))
-        }
-      }
-
-      this.webSocket.onerror = (errorEvent) => {
-        console.error(errorEvent)
-        connection.send(errorEvent)
-      }
-
-      this.webSocket.onclose = (closeEvent) => {
-        console.log('closeddd')
-        connection.send(closeEvent)
-      }
-
       connection.on('error', (errorEvent) => {
-        console.error('error')
-        connection.send(errorEvent)
+        console.error('error occurred : ' + errorEvent.message)
+        this.webSocket.close()
       })
 
       connection.on('close', (closeEvent) => {
         console.log(closeEvent)
-        connection.send(closeEvent)
+        this.webSocket.close()
       })
+
+      this.handleCommunicationWithClient(connection)
     })
   }
 
@@ -88,8 +51,30 @@ export class StreamingClient {
     return undefined
   }
 
+  handleCommunicationWithClient = (connection) => {
+    this.webSocket.onmessage = (message) => {
+      //convert the binary event stream message to JSON
+      const messageWrapper = this.marshall.decode(Buffer.from(message.data as ArrayBuffer))
+      const messageBody = JSON.parse(String.fromCharCode(...messageWrapper.body))
+      console.log('messageBody: ' + String.fromCharCode(...messageWrapper.body))
+      if (messageWrapper.headers[':message-type'].value === 'event') {
+        connection.send(this.handleEventStreamMessage(messageBody))
+      }
+    }
+
+    this.webSocket.onerror = (errorEvent) => {
+      console.error('Error event : ' + errorEvent.message)
+      connection.send(errorEvent)
+    }
+
+    this.webSocket.onclose = (closeEvent) => {
+      console.log('Closed event: ' + closeEvent.reason)
+      connection.close()
+    }
+  }
+
   // the audio stream is raw audio bytes. Transcribe expects PCM with additional metadata, encoded as binary
-  private convertAudioToBinaryMessage = (data: unknown) => {
+  private convertAudioToBinaryMessage = (data: ArrayBuffer) => {
     if (!data) return
 
     const pcmEncodedBuffer = EncodingUtils.pcmEncode(data)
